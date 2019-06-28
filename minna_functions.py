@@ -1,11 +1,12 @@
-#1. take info from SQL database and put it into Mongo 
-#2. scrape darksky API based on day or time, all for Berlin, Germany 
-# The team's win percentage on days where it was raining during games in the 2011 season.
-
 import pandas as pd
 import sqlite3
+from datetime import datetime
+import numpy as np
+import matplotlib.pyplot as plt
+import requests
 conn = sqlite3.connect('database.sqlite')
 c = conn.cursor()
+
 
 def total_teams():
     c.execute('''SELECT AwayTeam FROM Matches
@@ -80,7 +81,6 @@ def total_wins(team_name):
 def total_draws(team_name):
     '''this function takes in the team name as a string and returns the total draws for the team during the 2011 season'''
     
-    
     c.execute('''SELECT TeamName, COUNT(FTR) 
              FROM Matches
              JOIN Teams_in_Matches 
@@ -107,7 +107,7 @@ def total_losses(team_name):
              WHERE Season == 2011
              Group By 1''')
     Total_Games = pd.DataFrame(c.fetchall())
-    Total_Games['Total_Games'] = Total_Games[1]+ Total_Games[2]
+    Total_Games['Total_Games'] = Total_Games[1] + Total_Games[2]
     Total_Games = Total_Games.set_index(0)
     
     team_total = Total_Games.loc[team_name, 'Total_Games']
@@ -137,6 +137,51 @@ def histogram():
     plt.title("distribution of wins vs. losses for 2011 soccer season")
     plt.show()
     return
+
+
+class scrape_dark_sky():
+    '''makes a dictionary of the rain for each day a game was played'''
+    
+    def __init__(self):
+        self.latitude = 52.5200
+        self.longitude = 13.4050
+        self.secret_key = '6451ebd4d55c9eaa573cda7e94ad37d0'
+    
+    def unix_list(self):
+        c.execute('''SELECT * FROM matches
+                     WHERE Season == 2011
+                     ''')
+        df_matches = pd.DataFrame(c.fetchall())
+        dates = df_matches[3]
+        review = pd.to_datetime(pd.Series(dates))
+        df_matches[3] = review
+        dates_UNIX = list(df_matches[3].astype(np.int64) // 10**9)
+        return dates_UNIX
+    
+    def get_rain(self):
+        temp = {}
+        
+        for date in scrape_dark_sky().unix_list()[:5]: #limits to 5 take out for real run
+            date = date
+            URL = 'https://api.darksky.net/forecast/{}/{},{},{}?exclude=currently,flags,hourly,minutely,alerts'.format(self.secret_key, self.latitude, self.longitude, date)
+        
+            resp = requests.get(URL)
+            r = resp.json()
+            rain_for_day = r['daily']['data'][0]['precipIntensity']
+            
+            if rain_for_day == 0:
+                rain_for_day = False 
+            else:
+                rain_for_day = True
+                
+            date = datetime.utcfromtimestamp(date).strftime('%Y-%m-%d')
+            temp.update({date : rain_for_day})
+        
+        return temp
+     
+    
+def percentage_wins_rain(team_name):
+    pass
     
     
     
